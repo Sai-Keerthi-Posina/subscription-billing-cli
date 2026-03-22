@@ -8,6 +8,7 @@ import com.cognizant.billing.service.UserService;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Scanner;
@@ -24,122 +25,178 @@ public class ConsoleRunner {
     }
 
     public void start() {
-        System.out.println("=== Subscription Billing CLI ===");
-        System.out.println("Type 'help' for commands. 'exit' to quit.");
+        System.out.println("=== Subscription Billing CLI (Menu-Driven) ===");
         try (Scanner sc = new Scanner(System.in)) {
             while (true) {
-                System.out.print("> ");
-                String line = sc.nextLine();
-                if (line == null) break;
-                line = line.trim();
-                if (line.isEmpty()) continue;
-
-                if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) break;
-                if (line.equalsIgnoreCase("help")) { printHelp(); continue; }
-
-                var t = CommandParser.tokenize(line);
-                if (t.isEmpty()) continue;
-
-                String cmd = t.get(0).toLowerCase(Locale.ROOT);
-                try {
-                    switch (cmd) {
-                        case "plan" -> handlePlan(t);
-                        case "user" -> handleUser(t);
-                        default -> System.out.println("Unknown command. Type 'help'.");
+                switch (mainMenu(sc)) {
+                    case 1 -> usersMenu(sc);
+                    case 2 -> plansMenu(sc);
+                    case 0 -> {
+                        System.out.println("Bye!");
+                        return;
                     }
-                } catch (Exception e) {
-                    System.out.println("Error: " + e.getMessage());
+                    default -> System.out.println("Invalid option. Try again.");
                 }
             }
         }
-        System.out.println("Bye!");
     }
 
-    private void handlePlan(List<String> t) {
-        if (t.size() < 2) { System.out.println("Usage: plan [add|list]"); return; }
-        String op = t.get(1).toLowerCase(Locale.ROOT);
-        switch (op) {
-            case "add" -> {
-                String name = CommandParser.getFlag(t, "--name", null);
-                String priceStr = CommandParser.getFlag(t, "--price", null);
-                String cycleStr = CommandParser.getFlag(t, "--cycle", "MONTHLY");
-                if (name == null || priceStr == null) {
-                    System.out.println("Usage: plan add --name \"Basic\" --price 499 [--cycle MONTHLY|YEARLY]");
-                    return;
+    private int mainMenu(Scanner sc) {
+        System.out.println("\nMain Menu");
+        System.out.println("  1) Users");
+        System.out.println("  2) Plans");
+        System.out.println("  0) Exit");
+        System.out.print("Choose: ");
+        return readInt(sc);
+    }
+
+    // ===================== USERS =====================
+    private void usersMenu(Scanner sc) {
+        while (true) {
+            System.out.println("\nUsers Menu");
+            System.out.println("  1) Add User");
+            System.out.println("  2) List Users");
+            System.out.println("  3) Update User");
+            System.out.println("  4) Delete User");
+            System.out.println("  0) Back");
+            System.out.print("Choose: ");
+            int choice = readInt(sc);
+            try {
+                switch (choice) {
+                    case 1 -> addUser(sc);
+                    case 2 -> listUsers();
+                    case 3 -> updateUser(sc);
+                    case 4 -> deleteUser(sc);
+                    case 0 -> { return; }
+                    default -> System.out.println("Invalid option. Try again.");
                 }
-                BigDecimal price = new BigDecimal(priceStr);
-                BillingCycle cycle = BillingCycle.valueOf(cycleStr.toUpperCase(Locale.ROOT));
-                Plan p = planService.addPlan(name, price, cycle);
-                System.out.println("Created " + p);
+            } catch (Exception e) {
+                System.out.println("Error: " + e.getMessage());
             }
-            case "list" -> {
-                List<Plan> plans = planService.list();
-                if (plans.isEmpty()) System.out.println("(no plans)");
-                else plans.forEach(System.out::println);
-            }
-            default -> System.out.println("Usage: plan [add|list]");
         }
     }
 
-    private void handleUser(List<String> t) {
-        if (t.size() < 2) { System.out.println("Usage: user [add|list|update|delete]"); return; }
-        String op = t.get(1).toLowerCase(Locale.ROOT);
+    private void addUser(Scanner sc) {
+        System.out.println("\nAdd User");
+        System.out.print("Enter name: ");
+        String name = sc.nextLine().trim();
+        System.out.print("Enter email: ");
+        String email = sc.nextLine().trim();
 
-        switch (op) {
-            case "add" -> {
-                String name = CommandParser.getFlag(t, "--name", null);
-                String email = CommandParser.getFlag(t, "--email", null);
-                if (name == null || email == null) {
-                    System.out.println("Usage: user add --name \"Alice\" --email alice@example.com");
-                    return;
-                }
-                User u = userService.add(name, email);
-                System.out.println("Created " + u);
-            }
-            case "list" -> {
-                List<User> users = userService.list();
-                if (users.isEmpty()) System.out.println("(no users)");
-                else users.forEach(System.out::println);
-            }
-            case "update" -> {
-                String idStr = CommandParser.getFlag(t, "--id", null);
-                if (idStr == null) {
-                    System.out.println("Usage: user update --id 1 [--name N] [--email E]");
-                    return;
-                }
-                Long id = Long.parseLong(idStr);
-                String name = CommandParser.getFlag(t, "--name", null);   // optional
-                String email = CommandParser.getFlag(t, "--email", null); // optional
-                User updated = userService.update(id, name, email);
-                System.out.println("Updated " + updated);
-            }
-            case "delete" -> {
-                String idStr = CommandParser.getFlag(t, "--id", null);
-                if (idStr == null) {
-                    System.out.println("Usage: user delete --id 1");
-                    return;
-                }
-                Long id = Long.parseLong(idStr);
-                boolean ok = userService.delete(id);
-                System.out.println(ok ? "Deleted user " + id : "User not found");
-            }
-            default -> System.out.println("Usage: user [add|list|update|delete]");
+        User u = userService.add(name, email);
+        System.out.println("Created: " + u);
+    }
+
+    private void listUsers() {
+        System.out.println("\nUsers List");
+        List<User> users = userService.list();
+        if (users.isEmpty()) {
+            System.out.println("(no users)");
+        } else {
+            users.forEach(System.out::println);
         }
     }
 
-    private void printHelp() {
-        System.out.println("""
-          Commands:
-            help
-            exit
+    private void updateUser(Scanner sc) {
+        System.out.println("\nUpdate User");
+        System.out.print("Enter user id: ");
+        Long id = readLong(sc);
+        System.out.print("Enter new name (or leave blank to keep current): ");
+        String name = sc.nextLine();
+        name = name != null && !name.isBlank() ? name.trim() : null;
+        System.out.print("Enter new email (or leave blank to keep current): ");
+        String email = sc.nextLine();
+        email = email != null && !email.isBlank() ? email.trim() : null;
 
-            plan add --name "Basic" --price 499 --cycle MONTHLY|YEARLY
-            plan list
+        User updated = userService.update(id, name, email);
+        System.out.println("Updated: " + updated);
+    }
 
-            user add --name "Alice" --email alice@example.com
-            user list
-            user update --id 1 --name "Alicia" --email alicia@example.com
-            user delete --id 1
-        """);
+    private void deleteUser(Scanner sc) {
+        System.out.println("\nDelete User");
+        System.out.print("Enter user id: ");
+        Long id = readLong(sc);
+        boolean ok = userService.delete(id);
+        System.out.println(ok ? "Deleted user " + id : "User not found");
+    }
+
+    // ===================== PLANS =====================
+    private void plansMenu(Scanner sc) {
+        while (true) {
+            System.out.println("\nPlans Menu");
+            System.out.println("  1) Add Plan");
+            System.out.println("  2) List Plans");
+            System.out.println("  0) Back");
+            System.out.print("Choose: ");
+            int choice = readInt(sc);
+            try {
+                switch (choice) {
+                    case 1 -> addPlan(sc);
+                    case 2 -> listPlans();
+                    case 0 -> { return; }
+                    default -> System.out.println("Invalid option. Try again.");
+                }
+            } catch (Exception e) {
+                System.out.println("Error: " + e.getMessage());
+            }
+        }
+    }
+
+    private void addPlan(Scanner sc) {
+        System.out.println("\nAdd Plan");
+        System.out.print("Enter plan name: ");
+        String name = sc.nextLine().trim();
+        System.out.print("Enter price (e.g. 499 or 499.00): ");
+        BigDecimal price = readBigDecimal(sc);
+        System.out.print("Enter cycle (MONTHLY or YEARLY): ");
+        String cycleStr = sc.nextLine().trim().toUpperCase(Locale.ROOT);
+        BillingCycle cycle = BillingCycle.valueOf(cycleStr);
+
+        Plan p = planService.addPlan(name, price, cycle);
+        System.out.println("Created: " + p);
+    }
+
+    private void listPlans() {
+        System.out.println("\nPlans List");
+        List<Plan> plans = planService.list();
+        if (plans.isEmpty()) {
+            System.out.println("(no plans)");
+        } else {
+            plans.forEach(System.out::println);
+        }
+    }
+
+    // ===================== INPUT HELPERS =====================
+    private int readInt(Scanner sc) {
+        while (true) {
+            try {
+                String s = sc.nextLine();
+                return Integer.parseInt(s.trim());
+            } catch (NumberFormatException e) {
+                System.out.print("Please enter a number: ");
+            }
+        }
+    }
+
+    private Long readLong(Scanner sc) {
+        while (true) {
+            try {
+                String s = sc.nextLine();
+                return Long.parseLong(s.trim());
+            } catch (NumberFormatException e) {
+                System.out.print("Please enter a valid integer id: ");
+            }
+        }
+    }
+
+    private BigDecimal readBigDecimal(Scanner sc) {
+        while (true) {
+            try {
+                String s = sc.nextLine();
+                return new BigDecimal(s.trim());
+            } catch (NumberFormatException e) {
+                System.out.print("Please enter a valid amount (e.g., 499 or 499.00): ");
+            }
+        }
     }
 }
